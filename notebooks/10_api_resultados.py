@@ -90,6 +90,10 @@ else:
     print("⚠️ Coluna 'data' não encontrada. Criando data padrão...")
     df['data'] = pd.date_range('2017-01-01', periods=len(df), freq='D')
 
+# FILTRO: APENAS PERÍODO CONSISTENTE (Jan/2017 a Ago/2018)
+df = df[(df['data'] >= '2017-01-01') & (df['data'] <= '2018-08-31')]
+print(f"📅 Após filtro (Jan/2017 a Ago/2018): {df['data'].min().date()} a {df['data'].max().date()}")
+
 # Garantir tipos numéricos
 df['valor_total_item'] = pd.to_numeric(df['valor_total_item'], errors='coerce').fillna(0)
 df['freight_value'] = pd.to_numeric(df['freight_value'], errors='coerce').fillna(0)
