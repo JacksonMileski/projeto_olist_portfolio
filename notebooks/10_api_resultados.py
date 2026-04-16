@@ -1,11 +1,10 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 import pandas as pd
 from pathlib import Path
 import traceback
 
 # ==========================================================
-# 1. CONFIGURAÇÃO
+# CONFIGURAÇÃO
 # ==========================================================
 try:
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +20,7 @@ app = FastAPI(
 )
 
 # ==========================================================
-# 2. FUNÇÃO AUXILIAR PARA FORMATAR MOEDA
+# FUNÇÕES AUXILIARES
 # ==========================================================
 def formatar_moeda(valor):
     """Formata valor no padrão brasileiro (R$ 1.234,56)"""
@@ -32,86 +31,105 @@ def formatar_percentual(valor):
     return f"{valor:.2f}".replace('.', ',') + "%"
 
 # ==========================================================
-# 3. CARREGAR DADOS DO CSV
+# CARREGAR DADOS DO fato_vendas.csv
 # ==========================================================
 print("\n" + "=" * 80)
-print("CARREGANDO DADOS DO CSV...")
+print("CARREGANDO DADOS DO fato_vendas.csv...")
 print("=" * 80)
 
-# Procura por arquivo CSV na pasta dados_tratados
-csv_files = list(DADOS_TRATADOS.glob("*.csv"))
+csv_path = DADOS_TRATADOS / "fato_vendas.csv"
 
-if not csv_files:
-    raise FileNotFoundError(f"Nenhum arquivo CSV encontrado em {DADOS_TRATADOS}")
+if not csv_path.exists():
+    raise FileNotFoundError(f"Arquivo não encontrado: {csv_path}")
 
-# Carrega o primeiro CSV encontrado
-csv_path = csv_files[0]
-print(f"Arquivo encontrado: {csv_path.name}")
+df = pd.read_csv(csv_path)
+print(f"✅ Arquivo carregado: {csv_path.name}")
+print(f"📊 Linhas: {df.shape[0]} | Colunas: {df.shape[1]}")
+print(f"📋 Colunas disponíveis: {df.columns.tolist()}")
 
-df_vendas = pd.read_csv(csv_path)
-print(f"Dados carregados: {df_vendas.shape[0]} linhas, {df_vendas.shape[1]} colunas")
+# ==========================================================
+# VERIFICAR E AJUSTAR COLUNAS NECESSÁRIAS
+# ==========================================================
 
-# Verifica e ajusta as colunas necessárias
-print("\nColunas disponíveis no CSV:")
-print(df_vendas.columns.tolist())
-
-# Renomear colunas se necessário (ajuste conforme seu CSV)
-# Se seu CSV já tem os nomes corretos, remova esta parte
-mapeamento_colunas = {
-    'id_pedido': 'order_id',
-    'estado_cliente': 'customer_state',
-    'cidade_cliente': 'customer_city',
-    'valor_produto': 'price',
-    'valor_frete': 'freight_value'
+# Colunas que o código espera
+colunas_necessarias = {
+    'order_id': ['order_id', 'id_pedido', 'pedido_id'],
+    'customer_state': ['customer_state', 'estado_cliente', 'uf', 'state'],
+    'valor_total_item': ['valor_total_item', 'total_pedido', 'receita', 'valor_total'],
+    'freight_value': ['freight_value', 'valor_frete', 'frete'],
+    'data': ['data', 'order_purchase_timestamp', 'data_pedido', 'date'],
+    'entregue_com_atraso': ['entregue_com_atraso', 'atraso', 'is_delayed', 'delay'],
+    'pedido_entregue': ['pedido_entregue', 'entregue', 'is_delivered', 'delivered']
 }
 
-for nome_antigo, nome_novo in mapeamento_colunas.items():
-    if nome_antigo in df_vendas.columns and nome_novo not in df_vendas.columns:
-        df_vendas.rename(columns={nome_antigo: nome_novo}, inplace=True)
+# Função para encontrar coluna
+def encontrar_coluna(nome_esperado):
+    possibilidades = colunas_necessarias[nome_esperado]
+    for col in df.columns:
+        if col.lower() in [p.lower() for p in possibilidades]:
+            return col
+    return None
 
-# Garantir que 'data' existe
-if 'data' not in df_vendas.columns:
-    print("⚠️ Coluna 'data' não encontrada. Criando coluna padrão...")
-    df_vendas['data'] = pd.date_range('2017-01-01', periods=len(df_vendas), freq='D')
+# Renomear colunas para o padrão
+for nome_esperado in colunas_necessarias.keys():
+    coluna_encontrada = encontrar_coluna(nome_esperado)
+    if coluna_encontrada and coluna_encontrada != nome_esperado:
+        df.rename(columns={coluna_encontrada: nome_esperado}, inplace=True)
+        print(f"✓ Mapeado: '{coluna_encontrada}' → '{nome_esperado}'")
+
+# Verificar colunas essenciais
+colunas_essenciais = ['order_id', 'valor_total_item', 'freight_value']
+for col in colunas_essenciais:
+    if col not in df.columns:
+        raise ValueError(f"Coluna essencial '{col}' não encontrada no CSV. Colunas disponíveis: {df.columns.tolist()}")
+
+# Converter data
+if 'data' in df.columns:
+    df['data'] = pd.to_datetime(df['data'])
 else:
-    df_vendas['data'] = pd.to_datetime(df_vendas['data'])
+    print("⚠️ Coluna 'data' não encontrada. Criando data padrão...")
+    df['data'] = pd.date_range('2017-01-01', periods=len(df), freq='D')
 
-# Garantir que 'valor_total_item' existe (se não, calcular)
-if 'valor_total_item' not in df_vendas.columns:
-    if 'price' in df_vendas.columns and 'freight_value' in df_vendas.columns:
-        print("⚠️ Calculando 'valor_total_item' a partir de price + freight_value")
-        df_vendas['valor_total_item'] = df_vendas['price'] + df_vendas['freight_value']
-    else:
-        raise ValueError("Coluna 'valor_total_item' não encontrada e não foi possível calcular")
+# Garantir tipos numéricos
+df['valor_total_item'] = pd.to_numeric(df['valor_total_item'], errors='coerce').fillna(0)
+df['freight_value'] = pd.to_numeric(df['freight_value'], errors='coerce').fillna(0)
 
-print(f"\n✅ Dados carregados com sucesso!")
-print(f"Período: {df_vendas['data'].min().date()} a {df_vendas['data'].max().date()}")
+if 'entregue_com_atraso' in df.columns:
+    df['entregue_com_atraso'] = pd.to_numeric(df['entregue_com_atraso'], errors='coerce').fillna(0).astype(int)
+else:
+    print("⚠️ Coluna 'entregue_com_atraso' não encontrada. Será usada taxa padrão de 6,79%")
+
+if 'pedido_entregue' in df.columns:
+    df['pedido_entregue'] = pd.to_numeric(df['pedido_entregue'], errors='coerce').fillna(0).astype(int)
+else:
+    print("⚠️ Coluna 'pedido_entregue' não encontrada. Será usada taxa padrão de 6,79%")
+
+print(f"\n✅ Dados processados com sucesso!")
+print(f"📅 Período: {df['data'].min().date()} a {df['data'].max().date()}")
+print(f"💰 Receita total: {formatar_moeda(df['valor_total_item'].sum())}")
 print("=" * 80)
 
 # ==========================================================
-# 4. KPIs GERAIS
+# KPIs GERAIS
 # ==========================================================
-receita_total = df_vendas['valor_total_item'].sum()
-total_pedidos = df_vendas['order_id'].nunique() if 'order_id' in df_vendas.columns else len(df_vendas)
+receita_total = df['valor_total_item'].sum()
+total_pedidos = df['order_id'].nunique()
 ticket_medio = receita_total / total_pedidos if total_pedidos > 0 else 0
 
 # Receita por estado
-if 'customer_state' in df_vendas.columns:
-    receita_estado = df_vendas.groupby('customer_state')['valor_total_item'].sum().sort_values(ascending=False).head(10)
+if 'customer_state' in df.columns:
+    receita_estado = df.groupby('customer_state')['valor_total_item'].sum().sort_values(ascending=False).head(10)
     receita_estado_formatada = {estado: formatar_moeda(valor) for estado, valor in receita_estado.items()}
 else:
     receita_estado_formatada = {"erro": "Coluna customer_state não encontrada"}
 
 # Receita mensal
-if 'data' in df_vendas.columns:
-    df_vendas['ano_mes'] = df_vendas['data'].dt.to_period('M').astype(str)
-    receita_mensal = df_vendas.groupby('ano_mes')['valor_total_item'].sum()
-    receita_mensal_formatada = {mes: formatar_moeda(valor) for mes, valor in receita_mensal.items()}
-else:
-    receita_mensal_formatada = {"erro": "Coluna data não encontrada"}
+df['ano_mes'] = df['data'].dt.to_period('M').astype(str)
+receita_mensal = df.groupby('ano_mes')['valor_total_item'].sum()
+receita_mensal_formatada = {mes: formatar_moeda(valor) for mes, valor in receita_mensal.items()}
 
 # ==========================================================
-# 5. ENDPOINTS
+# ENDPOINTS
 # ==========================================================
 
 @app.get("/")
@@ -120,18 +138,16 @@ def root():
         "mensagem": "Bem-vindo à API do Projeto Olist Portfolio",
         "versao": "1.0.0",
         "status": "online",
-        "endpoints_disponiveis": {
-            "/kpis": "KPIs gerais do negocio",
-            "/receita/estado": "Receita por estado",
-            "/receita/mensal": "Receita mensal",
-            "/insights": "Insights de negocio",
-            "/frete/impacto": "Impacto do frete",
-            "/atraso/impacto": "Impacto dos atrasos"
+        "total_pedidos": int(total_pedidos),
+        "total_registros": len(df),
+        "periodo": {
+            "inicio": df['data'].min().strftime('%Y-%m-%d'),
+            "fim": df['data'].max().strftime('%Y-%m-%d')
         }
     }
 
 @app.get("/kpis")
-def get_kpis_formatado():
+def get_kpis():
     return {
         "receita_total": formatar_moeda(receita_total),
         "total_pedidos": f"{int(total_pedidos):,}".replace(',', '.'),
@@ -139,14 +155,14 @@ def get_kpis_formatado():
     }
 
 @app.get("/receita/estado")
-def get_receita_estado_formatado():
+def get_receita_estado():
     return {
         "estados": receita_estado_formatada,
         "insight": "SP concentra 37% da receita total"
     }
 
 @app.get("/receita/mensal")
-def get_receita_mensal_formatado():
+def get_receita_mensal():
     return {
         "receita_mensal": receita_mensal_formatada,
         "insight": "Crescimento expressivo do primeiro ao ultimo mes"
@@ -156,12 +172,9 @@ def get_receita_mensal_formatado():
 def get_insights():
     try:
         # ==========================================================
-        # PEDIDOS CRÍTICOS
+        # PEDIDOS CRÍTICOS (valor < R$100 e frete > 30%)
         # ==========================================================
-        if 'order_id' not in df_vendas.columns:
-            return {"erro": "Coluna order_id não encontrada"}
-        
-        pedidos_agg = df_vendas.groupby('order_id').agg({
+        pedidos_agg = df.groupby('order_id').agg({
             'valor_total_item': 'sum',
             'freight_value': 'sum'
         }).reset_index()
@@ -179,8 +192,8 @@ def get_insights():
         # ==========================================================
         # TAXA DE ATRASO
         # ==========================================================
-        if 'entregue_com_atraso' in df_vendas.columns and 'pedido_entregue' in df_vendas.columns:
-            pedidos_atraso = df_vendas.groupby('order_id').agg({
+        if 'entregue_com_atraso' in df.columns and 'pedido_entregue' in df.columns:
+            pedidos_atraso = df.groupby('order_id').agg({
                 'entregue_com_atraso': 'max',
                 'pedido_entregue': 'max'
             }).reset_index()
@@ -198,13 +211,13 @@ def get_insights():
             taxa_atraso = 6.79  # valor padrão do seu projeto
         
         return {
-            "impacto_frete": {
-                "pedidos_criticos": f"{pedidos_criticos:,}".replace(',', '.'),
+            "pedidos_criticos": {
+                "quantidade": f"{pedidos_criticos:,}".replace(',', '.'),
                 "percentual": formatar_percentual(pct_pedidos_criticos),
                 "insight": f"{formatar_percentual(pct_pedidos_criticos)} dos pedidos tem frete > 30% do produto"
             },
-            "impacto_atraso": {
-                "taxa_atraso": formatar_percentual(taxa_atraso),
+            "taxa_atraso": {
+                "percentual": formatar_percentual(taxa_atraso),
                 "insight": f"{formatar_percentual(taxa_atraso)} dos pedidos entregues com atraso"
             }
         }
@@ -215,10 +228,10 @@ def get_insights():
 
 @app.get("/frete/impacto")
 def get_frete_impacto():
-    if 'customer_state' not in df_vendas.columns:
+    if 'customer_state' not in df.columns:
         return {"erro": "Coluna customer_state não encontrada"}
     
-    pedidos_frete = df_vendas.groupby(['order_id', 'customer_state']).agg({
+    pedidos_frete = df.groupby(['order_id', 'customer_state']).agg({
         'valor_total_item': 'sum',
         'freight_value': 'sum'
     }).reset_index()
@@ -246,17 +259,17 @@ def get_frete_impacto():
 
 @app.get("/atraso/impacto")
 def get_atraso_impacto():
-    if 'customer_state' not in df_vendas.columns:
+    if 'customer_state' not in df.columns:
         return {"erro": "Coluna customer_state não encontrada"}
     
-    if 'entregue_com_atraso' not in df_vendas.columns or 'pedido_entregue' not in df_vendas.columns:
+    if 'entregue_com_atraso' not in df.columns or 'pedido_entregue' not in df.columns:
         return {
             "estados_maior_atraso": {},
-            "insight": "Dados de atraso não disponíveis",
-            "recomendacao": "Verifique se as colunas 'entregue_com_atraso' e 'pedido_entregue' existem no CSV"
+            "insight": "Dados de atraso não disponíveis no CSV",
+            "recomendacao": "Considere adicionar as colunas 'entregue_com_atraso' e 'pedido_entregue'"
         }
     
-    pedidos_atraso = df_vendas.groupby(['order_id', 'customer_state']).agg({
+    pedidos_atraso = df.groupby(['order_id', 'customer_state']).agg({
         'entregue_com_atraso': 'max',
         'pedido_entregue': 'max'
     }).reset_index()
@@ -284,16 +297,19 @@ def get_atraso_impacto():
         "recomendacao": "Auditar parceiros logisticos nos estados problematicos"
     }
 
-@app.get("/kpis/raw", include_in_schema=False)
-def get_kpis_raw():
+@app.get("/debug/colunas")
+def debug_colunas():
+    """Endpoint para debug - mostra estrutura do CSV"""
     return {
-        "receita_total": round(receita_total, 2),
-        "total_pedidos": int(total_pedidos),
-        "ticket_medio": round(ticket_medio, 2)
+        "colunas": df.columns.tolist(),
+        "tipos": {col: str(dtype) for col, dtype in df.dtypes.items()},
+        "total_linhas": len(df),
+        "total_pedidos": int(df['order_id'].nunique()) if 'order_id' in df.columns else 0,
+        "amostra_primeiras_linhas": df.head(3).to_dict(orient="records")
     }
 
 # ==========================================================
-# 6. EXECUTAR API
+# EXECUTAR API
 # ==========================================================
 if __name__ == "__main__":
     import uvicorn
@@ -303,13 +319,13 @@ if __name__ == "__main__":
     print("Acesse: http://localhost:8000")
     print("Documentacao: http://localhost:8000/docs")
     print("\nEndpoints disponiveis:")
-    print("  /kpis           - KPIs formatados")
+    print("  /kpis           - KPIs gerais")
     print("  /receita/estado - Receita por estado")
     print("  /receita/mensal - Receita mensal")
     print("  /insights       - Insights de negocio")
     print("  /frete/impacto  - Impacto do frete")
     print("  /atraso/impacto - Impacto dos atrasos")
-    print("  /kpis/raw       - KPIs brutos (oculto)")
+    print("  /debug/colunas  - Debug: mostra estrutura dos dados")
     print("\nPressione Ctrl+C para parar")
     print("=" * 80)
     
