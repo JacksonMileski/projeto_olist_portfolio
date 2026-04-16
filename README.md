@@ -141,6 +141,9 @@ Conclusão: Quando dólar sobe, vendas também sobem
 
 📁 Estrutura do Projeto
 
+## 📁 Estrutura do Projeto
+
+```
 projeto_olist_portfolio/
 ├── dados_brutos/          # Arquivos CSV originais
 ├── dados_tratados/        # Dados após limpeza e transformação
@@ -154,20 +157,22 @@ projeto_olist_portfolio/
 ├── Dockerfile             # Configuração do container Docker
 ├── docker-compose.yml     # Orquestração Docker
 └── README.md              # Documentação
+```
 
-🐍 Scripts Python
+## 🐍 Scripts Python
 
-Script	                            Função
-01_carregamento_e_inspecao.py	      Carrega e inspeciona os dados
-02_limpeza_e_transformacao.py	      Limpeza, transformação e métricas
-03_analise_inicial_kpis.py	        Cálculo de KPIs básicos
-04_eda_visual.py	                  Análise exploratória e gráficos
-05_modelagem_portfolio.py         	Modelagem Star Schema
-06_analise_negocio_insights.py	    Insights e recomendações
-07_carga_postgresql.py	            Carga no PostgreSQL
-08_previsao_vendas.py	              Machine Learning (Regressão Linear)
-09_web_scraping.py	                Coleta de cotação do dólar
-10_api_resultados.py	              API REST com FastAPI
+| Script | Função |
+|--------|--------|
+| `01_carregamento_e_inspecao.py` | Carrega e inspeciona os dados |
+| `02_limpeza_e_transformacao.py` | Limpeza, transformação e métricas |
+| `03_analise_inicial_kpis.py` | Cálculo de KPIs básicos |
+| `04_eda_visual.py` | Análise exploratória e gráficos |
+| `05_modelagem_portfolio.py` | Modelagem Star Schema |
+| `06_analise_negocio_insights.py` | Insights e recomendações |
+| `07_carga_postgresql.py` | Carga no PostgreSQL |
+| `08_previsao_vendas.py` | Machine Learning (Regressão Linear) |
+| `09_web_scraping.py` | Coleta de cotação do dólar |
+| `10_api_resultados.py` | API REST com FastAPI |
 
 🗄️ SQL - Queries Analíticas
 Foram desenvolvidas 18 queries cobrindo:
