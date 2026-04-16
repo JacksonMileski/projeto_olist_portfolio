@@ -18,16 +18,18 @@ except NameError:
 
 DADOS_TRATADOS = BASE_DIR / "dados_tratados"
 
-# Configurações do PostgreSQL (compatível com Windows, Mac e Linux)
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "olist_portfolio")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "123")
-SCHEMA_NAME = os.getenv("SCHEMA_NAME", "portfolio")
+# ==========================================================
+# CONEXÃO COM BANCO (RENDER)
+# ==========================================================
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Criar conexão
-engine = create_engine(f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL não encontrada nas variáveis de ambiente")
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"sslmode": "require"}
+)
 
 app = FastAPI(
     title="Olist Portfolio API",
