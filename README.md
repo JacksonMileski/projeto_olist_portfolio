@@ -147,7 +147,7 @@ Conclusão: Quando dólar sobe, vendas também sobem
 projeto_olist_portfolio/
 ├── dados_brutos/          # Arquivos CSV originais
 ├── dados_tratados/        # Dados após limpeza e transformação
-├── notebooks/             # Scripts Python (01 a 10)
+├── src/                   # Scripts Python (01 a 10)
 ├── queries_sql/           # 18 queries analíticas + Views + Procedures
 ├── power_bi/              # Dashboard .pbix
 ├── prints_sql/            # Prints dos resultados SQL
@@ -209,7 +209,7 @@ Pedidos por dia da semana
 A API permite consultar os resultados em tempo real.
 
 Como testar localmente:
-python notebooks/10_api_resultados.py
+python src/10_api_resultados.py
 # Acesse http://localhost:8000/docs
 
 Como testar online:
@@ -262,16 +262,16 @@ git clone https://github.com/JacksonMileski/projeto_olist_portfolio.git
 pip install -r requirements.txt
 
 # 3. Executar os scripts em ordem
-python notebooks/01_carregamento_e_inspecao.py
-python notebooks/02_limpeza_e_transformacao.py
-python notebooks/07_carga_postgresql.py
+python src/01_carregamento_e_inspecao.py
+python src/02_limpeza_e_transformacao.py
+python src/07_carga_postgresql.py
 
 # 4. Executar análises avançadas
-python notebooks/08_previsao_vendas.py
-python notebooks/09_web_scraping.py
+python src/08_previsao_vendas.py
+python src/09_web_scraping.py
 
 # 5. Iniciar a API
-python notebooks/10_api_resultados.py
+python src/10_api_resultados.py
 
 
 Com Docker
